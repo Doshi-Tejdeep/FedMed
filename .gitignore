@@ -216,3 +216,23 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# FedMed
+.env
+.venv/
+
+# Medical datasets
+data/
+*.nii
+*.nii.gz
+*.dcm
+
+# Trained models
+*.pt
+*.pth
+*.ckpt
+
+# Testing
+.pytest_cache/
+
+# Streamlit
+.streamlit/
