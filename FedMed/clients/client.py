@@ -5,7 +5,7 @@ import numpy as np
 from model.unet3d import create_model
 from training.local_train import get_dataset
 from torch.utils.data import DataLoader
-
+from evaluation.dice import dice_score
 
 class FedMedClient(fl.client.NumPyClient):
 
@@ -113,13 +113,62 @@ class FedMedClient(fl.client.NumPyClient):
 
         self.set_parameters(parameters)
 
+        dataset = get_dataset(
+            self.hospital_id.lower().replace("-", "")
+        )
+
+        loader = DataLoader(
+            dataset,
+            batch_size=1,
+            shuffle=False,
+        )
+
         self.model.eval()
 
+        total_dice = 0.0
+        total_samples = 0
+
+        with torch.no_grad():
+
+            for batch in loader:
+
+                images = batch["image"].to(self.device)
+                labels = batch["label"].to(self.device)
+
+                outputs = self.model(images)
+
+                predictions = torch.argmax(
+                    outputs,
+                    dim=1,
+                )
+
+                labels = labels.squeeze(1).long()
+
+                # Convert segmentation to binary foreground masks
+                predictions = (predictions > 0).float()
+                labels = (labels > 0).float()
+
+                dice = dice_score(
+                    predictions,
+                    labels,
+                )
+
+                total_dice += dice
+                total_samples += 1
+
+        average_dice = total_dice / total_samples
+
+        print(
+            f"{self.hospital_id}: "
+            f"Dice Score: {average_dice:.4f}"
+        )
+
         return (
-            0.0,
-            1,
+            float(average_dice),
+            total_samples,
             {
                 "hospital_id": self.hospital_id,
+                "dice_score": float(average_dice),
             },
         )
 
