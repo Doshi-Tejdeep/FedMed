@@ -1,10 +1,17 @@
 import os
+
 import torch
 from torch.utils.data import DataLoader
 
 from model.unet3d import create_model
 from training.local_train import get_dataset
-from evaluation.dice import dice_score
+
+from evaluation.metrics import (
+    dice_score,
+    iou_score,
+    precision_score,
+    recall_score,
+)
 
 
 MODEL_PATH = "models/global_model.pth"
@@ -24,6 +31,10 @@ def evaluate_hospital(model, hospital_id, device):
     model.eval()
 
     total_dice = 0.0
+    total_iou = 0.0
+    total_precision = 0.0
+    total_recall = 0.0
+
     count = 0
 
     with torch.no_grad():
@@ -35,29 +46,56 @@ def evaluate_hospital(model, hospital_id, device):
 
             outputs = model(images)
 
-            # Convert model output to predicted class
-            predictions = torch.argmax(outputs, dim=1)
-
-            # Remove channel dimension from ground-truth mask
-            labels = labels.squeeze(1).long()
-
-            # Calculate Dice score
-            score = dice_score(
-                predictions,
-                labels
+            predictions = torch.argmax(
+                outputs,
+                dim=1,
             )
 
-            total_dice += float(score)
+            labels = labels.squeeze(1).long()
+
+            dice = dice_score(
+                predictions,
+                labels,
+            )
+
+            iou = iou_score(
+                predictions,
+                labels,
+            )
+
+            precision = precision_score(
+                predictions,
+                labels,
+            )
+
+            recall = recall_score(
+                predictions,
+                labels,
+            )
+
+            total_dice += dice
+            total_iou += iou
+            total_precision += precision
+            total_recall += recall
+
             count += 1
 
-    average_dice = total_dice / count
+    results = {
+        "dice": total_dice / count,
+        "iou": total_iou / count,
+        "precision": total_precision / count,
+        "recall": total_recall / count,
+    }
 
     print(
-        f"{hospital_id} Dice: "
-        f"{average_dice:.4f}"
+        f"{hospital_id} | "
+        f"Dice: {results['dice']:.4f} | "
+        f"IoU: {results['iou']:.4f} | "
+        f"Precision: {results['precision']:.4f} | "
+        f"Recall: {results['recall']:.4f}"
     )
 
-    return average_dice
+    return results
 
 
 def main():
@@ -67,21 +105,23 @@ def main():
     print("====================================")
 
     if not os.path.exists(MODEL_PATH):
+
         print("ERROR: Global model not found!")
         print(f"Expected path: {MODEL_PATH}")
+
         return
 
     device = torch.device(
-        "cuda" if torch.cuda.is_available() else "cpu"
+        "cuda"
+        if torch.cuda.is_available()
+        else "cpu"
     )
 
     print(f"Device: {device}")
     print("\nLoading global model...")
 
-    # Create same U-Net architecture
     model = create_model().to(device)
 
-    # Load federated global parameters
     state_dict = torch.load(
         MODEL_PATH,
         map_location=device,
@@ -101,40 +141,71 @@ def main():
         "hospital3",
     ]
 
-    scores = []
+    hospital_results = []
 
     for hospital in hospitals:
 
-        score = evaluate_hospital(
+        result = evaluate_hospital(
             model,
             hospital,
             device,
         )
 
-        scores.append(score)
+        hospital_results.append(result)
 
-    average_score = sum(scores) / len(scores)
+    average_dice = sum(
+        result["dice"]
+        for result in hospital_results
+    ) / len(hospital_results)
+
+    average_iou = sum(
+        result["iou"]
+        for result in hospital_results
+    ) / len(hospital_results)
+
+    average_precision = sum(
+        result["precision"]
+        for result in hospital_results
+    ) / len(hospital_results)
+
+    average_recall = sum(
+        result["recall"]
+        for result in hospital_results
+    ) / len(hospital_results)
 
     print("\n====================================")
     print("GLOBAL MODEL RESULTS")
     print("====================================")
 
-    print(
-        f"Hospital-1 Dice: {scores[0]:.4f}"
-    )
+    for index, result in enumerate(
+        hospital_results,
+        start=1,
+    ):
 
-    print(
-        f"Hospital-2 Dice: {scores[1]:.4f}"
-    )
-
-    print(
-        f"Hospital-3 Dice: {scores[2]:.4f}"
-    )
+        print(
+            f"Hospital-{index}: "
+            f"Dice={result['dice']:.4f}, "
+            f"IoU={result['iou']:.4f}, "
+            f"Precision={result['precision']:.4f}, "
+            f"Recall={result['recall']:.4f}"
+        )
 
     print("------------------------------------")
 
     print(
-        f"Average Dice: {average_score:.4f}"
+        f"Average Dice:      {average_dice:.4f}"
+    )
+
+    print(
+        f"Average IoU:       {average_iou:.4f}"
+    )
+
+    print(
+        f"Average Precision: {average_precision:.4f}"
+    )
+
+    print(
+        f"Average Recall:    {average_recall:.4f}"
     )
 
     print("====================================")
