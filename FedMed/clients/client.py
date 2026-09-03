@@ -213,13 +213,3 @@ class FedMedClient(fl.client.NumPyClient):
         )
 
 
-if __name__ == "__main__":
-
-    client = FedMedClient(
-        "Hospital-1"
-    )
-
-    fl.client.start_client(
-        server_address="127.0.0.1:8080",
-        client=client.to_client(),
-    )
