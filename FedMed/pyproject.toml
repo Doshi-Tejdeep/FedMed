@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "fedmed"
 version = "1.0.0"
 description = "FedMed privacy-preserving federated medical image segmentation"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<4.0"
 dependencies = [
     "flwr[dp]==1.35.0",
     "torch",

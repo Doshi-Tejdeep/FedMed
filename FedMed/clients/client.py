@@ -18,14 +18,31 @@ class FedMedClient(fl.client.NumPyClient):
 
         self.model = create_model().to(self.device)
 
+    # ---------------------------------------------------------
+    # Get the dataset for this hospital
+    # ---------------------------------------------------------
+    def _get_dataset(self):
+        return get_dataset(
+            self.hospital_id.lower().replace("-", "")
+        )
+
+    # ---------------------------------------------------------
+    # Get model parameters
+    # ---------------------------------------------------------
     def get_parameters(self, config):
-        print(f"{self.hospital_id}: Sending model parameters")
+        print(
+            f"{self.hospital_id}: "
+            f"Sending model parameters"
+        )
 
         return [
-            value.cpu().numpy()
+            value.detach().cpu().numpy()
             for _, value in self.model.state_dict().items()
         ]
 
+    # ---------------------------------------------------------
+    # Set model parameters
+    # ---------------------------------------------------------
     def set_parameters(self, parameters):
         state_dict = self.model.state_dict()
 
@@ -45,6 +62,9 @@ class FedMedClient(fl.client.NumPyClient):
             strict=True,
         )
 
+    # ---------------------------------------------------------
+    # Legacy NumPyClient training method
+    # ---------------------------------------------------------
     def fit(self, parameters, config):
 
         print(
@@ -54,9 +74,7 @@ class FedMedClient(fl.client.NumPyClient):
 
         self.set_parameters(parameters)
 
-        dataset = get_dataset(
-            self.hospital_id.lower().replace("-", "")
-        )
+        dataset = self._get_dataset()
 
         loader = DataLoader(
             dataset,
@@ -98,9 +116,7 @@ class FedMedClient(fl.client.NumPyClient):
 
             total_loss += loss.item()
 
-        average_loss = (
-            total_loss / len(loader)
-        )
+        average_loss = total_loss / len(loader)
 
         print(
             f"{self.hospital_id}: "
@@ -108,15 +124,10 @@ class FedMedClient(fl.client.NumPyClient):
             f"Loss: {average_loss:.4f}"
         )
 
-        # Return normal local parameters.
-        #
-        # Privacy clipping/noise will be handled by
-        # the federated privacy mechanism, not here.
-
         local_state = self.model.state_dict()
 
         local_parameters = [
-            value.cpu().numpy()
+            value.detach().cpu().numpy()
             for _, value in local_state.items()
         ]
 
@@ -129,6 +140,9 @@ class FedMedClient(fl.client.NumPyClient):
             },
         )
 
+    # ---------------------------------------------------------
+    # Evaluation
+    # ---------------------------------------------------------
     def evaluate(self, parameters, config):
 
         print(
@@ -138,9 +152,7 @@ class FedMedClient(fl.client.NumPyClient):
 
         self.set_parameters(parameters)
 
-        dataset = get_dataset(
-            self.hospital_id.lower().replace("-", "")
-        )
+        dataset = self._get_dataset()
 
         loader = DataLoader(
             dataset,
@@ -174,7 +186,6 @@ class FedMedClient(fl.client.NumPyClient):
 
                 labels = labels.squeeze(1).long()
 
-                # Convert to binary foreground masks.
                 predictions = (
                     predictions > 0
                 ).float()
@@ -211,5 +222,3 @@ class FedMedClient(fl.client.NumPyClient):
                 ),
             },
         )
-
-
