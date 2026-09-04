@@ -17,6 +17,11 @@ class FedMedClient(fl.client.NumPyClient):
         )
 
         self.model = create_model().to(self.device)
+    
+    def _get_dataset(self):
+        return get_dataset(
+            self.hospital_id.lower().replace("-", "")
+        )
 
     def get_parameters(self, config):
         print(f"{self.hospital_id}: Sending model parameters")

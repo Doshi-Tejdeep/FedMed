@@ -2,7 +2,7 @@ import os
 
 import torch
 
-from flwr.common import Context, ndarrays_to_parameters
+from flwr.app import ArrayRecord, ConfigRecord, Context
 from flwr.serverapp import ServerApp
 from flwr.serverapp.strategy import (
     FedAvg,
@@ -19,8 +19,18 @@ MODEL_PATH = os.path.join(
 )
 
 
-def save_global_model(parameters):
-    """Save aggregated model parameters as a PyTorch state dict."""
+def create_initial_arrays() -> ArrayRecord:
+    """Create the initial global model parameters."""
+
+    model = create_model()
+
+    return ArrayRecord(
+        torch_state_dict=model.state_dict()
+    )
+
+
+def save_global_model(array_record: ArrayRecord) -> None:
+    """Save the final global model as a PyTorch state dict."""
 
     os.makedirs(
         MODEL_DIR,
@@ -29,21 +39,10 @@ def save_global_model(parameters):
 
     model = create_model()
 
-    state_dict = model.state_dict()
-
-    new_state_dict = {}
-
-    for (key, old_value), new_value in zip(
-        state_dict.items(),
-        parameters,
-    ):
-        new_state_dict[key] = torch.tensor(
-            new_value,
-            dtype=old_value.dtype,
-        )
+    state_dict = array_record.to_torch_state_dict()
 
     model.load_state_dict(
-        new_state_dict,
+        state_dict,
         strict=True,
     )
 
@@ -57,40 +56,6 @@ def save_global_model(parameters):
     print(f"Path: {MODEL_PATH}")
     print("==============================")
     print()
-
-
-def aggregate_fit_metrics(metrics):
-    """Aggregate and display client training metrics."""
-
-    print("\n===== FEDAVG AGGREGATION =====")
-    print(f"Clients participating: {len(metrics)}")
-
-    for _, client_metrics in metrics:
-        print(
-            "Hospital: "
-            f"{client_metrics.get('hospital_id', 'Unknown')}"
-        )
-
-    print("==============================\n")
-
-    return {}
-
-
-def aggregate_evaluate_metrics(metrics):
-    """Display client evaluation participation."""
-
-    print("\n===== FEDERATED EVALUATION =====")
-    print(f"Clients participating: {len(metrics)}")
-
-    for _, client_metrics in metrics:
-        print(
-            "Hospital: "
-            f"{client_metrics.get('hospital_id', 'Unknown')}"
-        )
-
-    print("================================\n")
-
-    return {}
 
 
 app = ServerApp()
@@ -115,22 +80,49 @@ def main(grid, context: Context):
         context.run_config["num-sampled-clients"]
     )
 
-    print("Starting FedMed ServerApp...")
-    print(f"Federated rounds: {num_rounds}")
-    print(f"Sampled clients: {num_sampled_clients}")
-    print(f"DP noise multiplier: {noise_multiplier}")
-    print(f"DP clipping norm: {clipping_norm}")
-
-    base_strategy = FedAvg(
-        fraction_fit=1.0,
-        fraction_evaluate=1.0,
-        min_fit_clients=num_sampled_clients,
-        min_evaluate_clients=num_sampled_clients,
-        min_available_clients=num_sampled_clients,
-        fit_metrics_aggregation_fn=aggregate_fit_metrics,
-        evaluate_metrics_aggregation_fn=aggregate_evaluate_metrics,
+    local_epochs = int(
+        context.run_config.get(
+            "local-epochs",
+            1,
+        )
     )
 
+    learning_rate = float(
+        context.run_config.get(
+            "learning-rate",
+            0.001,
+        )
+    )
+
+    print("====================================")
+    print("FedMed ServerApp")
+    print("====================================")
+    print(f"Federated rounds    : {num_rounds}")
+    print(f"Sampled clients     : {num_sampled_clients}")
+    print(
+        f"DP noise multiplier : "
+        f"{noise_multiplier}"
+    )
+    print(
+        f"DP clipping norm    : "
+        f"{clipping_norm}"
+    )
+    print("====================================")
+
+    # ---------------------------------------------------------
+    # Base FedAvg strategy
+    # ---------------------------------------------------------
+    base_strategy = FedAvg(
+        fraction_train=1.0,
+        fraction_evaluate=1.0,
+        min_train_nodes=num_sampled_clients,
+        min_evaluate_nodes=num_sampled_clients,
+        min_available_nodes=num_sampled_clients,
+    )
+
+    # ---------------------------------------------------------
+    # Native Flower client-side clipping + central DP noise
+    # ---------------------------------------------------------
     strategy = DifferentialPrivacyClientSideFixedClipping(
         strategy=base_strategy,
         noise_multiplier=noise_multiplier,
@@ -138,10 +130,44 @@ def main(grid, context: Context):
         num_sampled_clients=num_sampled_clients,
     )
 
-    # This is intentionally kept as a placeholder until we verify
-    # the exact ServerApp grid/strategy integration in Flower 1.35.
-    #
-    # We do not start training here yet.
+    # ---------------------------------------------------------
+    # Initial global model
+    # ---------------------------------------------------------
+    initial_arrays = create_initial_arrays()
 
-    print("FedMed ServerApp configured successfully.")
-    print("Waiting for Flower App integration test...")
+    # ---------------------------------------------------------
+    # Configuration sent to every client
+    # ---------------------------------------------------------
+    train_config = ConfigRecord(
+        {
+            "local-epochs": local_epochs,
+            "learning-rate": learning_rate,
+        }
+    )
+
+    print()
+    print("Starting federated training...")
+    print()
+
+    # ---------------------------------------------------------
+    # START FEDERATED TRAINING
+    # ---------------------------------------------------------
+    result = strategy.start(
+        grid=grid,
+        initial_arrays=initial_arrays,
+        num_rounds=num_rounds,
+        train_config=train_config,
+    )
+
+    # ---------------------------------------------------------
+    # Save final global model
+    # ---------------------------------------------------------
+    if result.arrays is not None:
+        save_global_model(
+            result.arrays
+        )
+
+    print()
+    print("====================================")
+    print("FedMed federated training complete")
+    print("====================================")

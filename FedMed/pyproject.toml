@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "fedmed"
 version = "1.0.0"
 description = "FedMed privacy-preserving federated medical image segmentation"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<4.0"
 dependencies = [
     "flwr[dp]==1.35.0",
     "torch",
@@ -36,6 +36,6 @@ clientapp = "clients.client_app:app"
 num-server-rounds = 5
 local-epochs = 1
 learning-rate = 0.001
-dp-noise-multiplier = 1.0
+dp-noise-multiplier = 0.5
 dp-clipping-norm = 2.5
 num-sampled-clients = 3
