@@ -219,6 +219,7 @@ __marimo__/
 # FedMed
 .env
 .venv/
+.venv312/
 
 # Medical datasets
 data/
