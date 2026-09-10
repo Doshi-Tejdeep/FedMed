@@ -1,0 +1,7 @@
+experiment,noise_multiplier,clipping_norm,hospital,dice,iou,precision,recall
+FedAvg,0,0,Hospital-1,0.0480,0.0246,0.0484,0.0477
+FedAvg,0,0,Hospital-2,0.0334,0.0170,0.0337,0.0331
+FedAvg,0,0,Hospital-3,0.0350,0.0178,0.0354,0.0346
+DP-FedAvg,0.5,2.5,Hospital-1,0.0312,0.0158,0.0159,0.8841
+DP-FedAvg,0.5,2.5,Hospital-2,0.0311,0.0158,0.0158,0.8812
+DP-FedAvg,0.5,2.5,Hospital-3,0.0312,0.0158,0.0159,0.8830

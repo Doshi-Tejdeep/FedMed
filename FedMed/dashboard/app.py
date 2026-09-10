@@ -43,28 +43,63 @@ PREDICTION_DIR = os.path.join(
 # REAL PROJECT RESULTS
 # ============================================================
 
-HOSPITAL_DATA = {
-    "Hospital-1": {
-        "dice": 0.5402,
-        "sample_dice": 0.5349,
-        "status": "Completed",
-    },
-    "Hospital-2": {
-        "dice": 0.5246,
-        "sample_dice": 0.5325,
-        "status": "Completed",
-    },
-    "Hospital-3": {
-        "dice": 0.5328,
-        "sample_dice": 0.5272,
-        "status": "Completed",
-    },
-}
+RESULTS_PATH = os.path.join(
+    BASE_DIR,
+    "outputs",
+    "experiment_results.csv",
+)
 
-AVERAGE_DICE = sum(
-    item["dice"]
-    for item in HOSPITAL_DATA.values()
-) / len(HOSPITAL_DATA)
+
+def load_experiment_results():
+    """Load verified experiment results from CSV."""
+
+    if not os.path.exists(RESULTS_PATH):
+        return pd.DataFrame()
+
+    return pd.read_csv(RESULTS_PATH)
+
+
+RESULTS_DF = load_experiment_results()
+
+
+# Use the latest verified DP-FedAvg experiment
+if (
+    not RESULTS_DF.empty
+    and "experiment" in RESULTS_DF.columns
+):
+    DP_RESULTS = RESULTS_DF[
+        RESULTS_DF["experiment"] == "DP-FedAvg"
+    ].copy()
+else:
+    DP_RESULTS = pd.DataFrame()
+
+
+if not DP_RESULTS.empty:
+
+    HOSPITAL_DATA = {}
+
+    for _, row in DP_RESULTS.iterrows():
+
+        HOSPITAL_DATA[row["hospital"]] = {
+            "dice": float(row["dice"]),
+            "iou": float(row["iou"]),
+            "precision": float(row["precision"]),
+            "recall": float(row["recall"]),
+            "status": "Completed",
+        }
+
+    AVERAGE_DICE = DP_RESULTS["dice"].mean()
+    AVERAGE_IOU = DP_RESULTS["iou"].mean()
+    AVERAGE_PRECISION = DP_RESULTS["precision"].mean()
+    AVERAGE_RECALL = DP_RESULTS["recall"].mean()
+
+else:
+
+    HOSPITAL_DATA = {}
+    AVERAGE_DICE = 0.0
+    AVERAGE_IOU = 0.0
+    AVERAGE_PRECISION = 0.0
+    AVERAGE_RECALL = 0.0
 
 
 # ============================================================
@@ -426,7 +461,7 @@ with st.sidebar:
 
         🟢 Global model available
 
-        🟢 3 hospitals connected
+        🟢 3 hospitals participated
 
         🟢 Evaluation completed
         """
@@ -598,9 +633,15 @@ if page == "Overview":
         Hospital 3 ───────────────┘           │<br>
         <br>
         Local medical data                    │<br>
-        stays at each hospital                ▼<br>
+        remains at each hospital              ▼<br>
         <br>
-                                  FedAvg Aggregation<br>
+                              Client-side Fixed Clipping<br>
+                                             │<br>
+                                             ▼<br>
+                                      FedAvg Aggregation<br>
+                                             │<br>
+                                             ▼<br>
+                                  Central Gaussian DP Noise<br>
                                              │<br>
                                              ▼<br>
                                       Global 3D U-Net<br>
@@ -640,7 +681,9 @@ elif page == "Hospital Performance":
             {
                 "Hospital": hospital,
                 "Dice Score": values["dice"],
-                "Sample Dice": values["sample_dice"],
+                "IoU": values["iou"],
+                "Precision": values["precision"],
+                "Recall": values["recall"],
                 "Status": values["status"],
             }
         )
@@ -656,8 +699,16 @@ elif page == "Hospital Performance":
                 "Dice Score",
                 format="%.4f",
             ),
-            "Sample Dice": st.column_config.NumberColumn(
-                "Sample Dice",
+            "IoU": st.column_config.NumberColumn(
+                "IoU",
+                format="%.4f",
+            ),
+            "Precision": st.column_config.NumberColumn(
+                "Precision",
+                format="%.4f",
+            ),
+            "Recall": st.column_config.NumberColumn(
+                "Recall",
                 format="%.4f",
             ),
         },
@@ -775,10 +826,10 @@ elif page == "Segmentation Results":
 
                 score = HOSPITAL_DATA[
                     display_names[hospital]
-                ]["sample_dice"]
+                ]["dice"]
 
                 st.metric(
-                    "Sample Dice",
+                    "Dice",
                     f"{score:.4f}",
                 )
 
@@ -798,55 +849,73 @@ elif page == "Federated Training":
     st.header("Federated Training")
 
     st.write(
-        "Training configuration and completed federated "
-        "learning rounds."
+        "Verified training history for the standard FedAvg "
+        "baseline and the privacy-preserving DP-FedAvg experiment."
     )
 
     st.write("")
 
-    c1, c2, c3 = st.columns(3)
+    # --------------------------------------------------------
+    # Training summary
+    # --------------------------------------------------------
+
+    c1, c2, c3, c4 = st.columns(4)
 
     with c1:
         st.metric(
-            "Algorithm",
-            "FedAvg",
+            "Federated Rounds",
+            "5",
         )
 
     with c2:
         st.metric(
-            "Training Rounds",
-            "5",
+            "Hospitals",
+            "3",
         )
 
     with c3:
         st.metric(
-            "Clients / Round",
-            "3",
+            "DP Noise Multiplier",
+            "0.5",
+        )
+
+    with c4:
+        st.metric(
+            "DP Clipping Norm",
+            "2.5",
         )
 
     st.divider()
+
+    # --------------------------------------------------------
+    # Training configuration
+    # --------------------------------------------------------
 
     st.subheader("Training Configuration")
 
     config_df = pd.DataFrame(
         {
             "Parameter": [
-                "Federated Algorithm",
+                "Baseline Algorithm",
+                "Privacy-Preserving Algorithm",
                 "Hospitals",
-                "Minimum Clients",
+                "Clients per Round",
                 "Federated Rounds",
+                "Local Epochs",
+                "Learning Rate",
                 "Model",
-                "Architecture",
-                "Aggregation",
+                "Framework",
             ],
             "Configuration": [
                 "FedAvg",
+                "DP-FedAvg",
                 "3",
                 "3",
                 "5",
+                "1",
+                "0.001",
                 "3D U-Net",
-                "MONAI U-Net",
-                "Federated averaging",
+                "PyTorch + MONAI",
             ],
         }
     )
@@ -859,49 +928,164 @@ elif page == "Federated Training":
 
     st.write("")
 
-    st.subheader("Federated Round Status")
+    # --------------------------------------------------------
+    # Verified round-by-round training results
+    # --------------------------------------------------------
 
-    rounds = pd.DataFrame(
+    st.subheader("Round-by-Round Training Results")
+
+    training_history = pd.DataFrame(
         {
             "Round": [1, 2, 3, 4, 5],
-            "Hospital-1": [
-                0.0395,
-                0.0614,
-                0.1376,
-                0.4355,
-                0.5402,
+
+            "FedAvg Loss": [
+                0.7552829252,
+                0.6478891638,
+                0.5751358867,
+                0.5184391075,
+                0.4676197006,
             ],
-            "Hospital-2": [
-                0.0387,
-                0.0600,
-                0.1318,
-                0.4281,
-                0.5246,
+
+            "FedAvg Dice": [
+                0.0316425730,
+                0.0295521288,
+                0.0283128191,
+                0.0356543437,
+                0.0480200425,
             ],
-            "Hospital-3": [
-                0.0397,
-                0.0612,
-                0.1333,
-                0.4283,
-                0.5328,
+
+            "DP-FedAvg Loss": [
+                0.8260768851,
+                0.6389293538,
+                2.7583336035,
+                3.3267206351,
+                4.4625719918,
+            ],
+
+            "DP-FedAvg Dice": [
+                0.0305071597,
+                0.0313314293,
+                0.0305207844,
+                0.0310470524,
+                0.0312029148,
             ],
         }
     )
 
     st.dataframe(
-        rounds,
+        training_history,
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "FedAvg Loss": st.column_config.NumberColumn(
+                "FedAvg Loss",
+                format="%.4f",
+            ),
+            "FedAvg Dice": st.column_config.NumberColumn(
+                "FedAvg Dice",
+                format="%.4f",
+            ),
+            "DP-FedAvg Loss": st.column_config.NumberColumn(
+                "DP-FedAvg Loss",
+                format="%.4f",
+            ),
+            "DP-FedAvg Dice": st.column_config.NumberColumn(
+                "DP-FedAvg Dice",
+                format="%.4f",
+            ),
+        },
     )
 
     st.write("")
 
-    st.subheader("Hospital Evaluation Trend")
+    # --------------------------------------------------------
+    # Training loss comparison
+    # --------------------------------------------------------
 
-    chart = rounds.set_index("Round")
+    st.subheader("Training Loss Comparison")
 
-    st.line_chart(chart)
+    loss_chart = training_history.set_index("Round")[
+        [
+            "FedAvg Loss",
+            "DP-FedAvg Loss",
+        ]
+    ]
 
+    st.line_chart(loss_chart)
+
+    st.write("")
+
+    # --------------------------------------------------------
+    # Dice comparison
+    # --------------------------------------------------------
+
+    st.subheader("Dice Score Comparison")
+
+    dice_chart = training_history.set_index("Round")[
+        [
+            "FedAvg Dice",
+            "DP-FedAvg Dice",
+        ]
+    ]
+
+    st.line_chart(dice_chart)
+
+    st.write("")
+
+    # --------------------------------------------------------
+    # Experiment summary
+    # --------------------------------------------------------
+
+    st.subheader("Experiment Summary")
+
+    summary_df = pd.DataFrame(
+        {
+            "Experiment": [
+                "FedAvg",
+                "DP-FedAvg",
+            ],
+            "Final Train Loss": [
+                0.4676197006,
+                4.4625719918,
+            ],
+            "Final Dice": [
+                0.0480200425,
+                0.0312029148,
+            ],
+            "Noise Multiplier": [
+                0.0,
+                0.5,
+            ],
+            "Clipping Norm": [
+                0.0,
+                2.5,
+            ],
+        }
+    )
+
+    st.dataframe(
+        summary_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Final Train Loss": st.column_config.NumberColumn(
+                "Final Train Loss",
+                format="%.4f",
+            ),
+            "Final Dice": st.column_config.NumberColumn(
+                "Final Dice",
+                format="%.4f",
+            ),
+            "Noise Multiplier": st.column_config.NumberColumn(
+                "Noise Multiplier",
+                format="%.2f",
+            ),
+            "Clipping Norm": st.column_config.NumberColumn(
+                "Clipping Norm",
+                format="%.2f",
+            ),
+        },
+    )
 
 # ============================================================
 # GLOBAL MODEL
@@ -953,29 +1137,35 @@ elif page == "Global Model":
         st.subheader("Model Details")
 
         details = pd.DataFrame(
-            {
-                "Property": [
-                    "Model",
-                    "Framework",
-                    "Architecture",
-                    "Input Channels",
-                    "Output Classes",
-                    "Spatial Dimensions",
-                    "Federated Algorithm",
-                    "Model Status",
-                ],
-                "Value": [
-                    "Global 3D U-Net",
-                    "PyTorch + MONAI",
-                    "U-Net",
-                    "1",
-                    "2",
-                    "3D",
-                    "FedAvg",
-                    "Available",
-                ],
-            }
-        )
+                {
+                    "Property": [
+                        "Model",
+                        "Framework",
+                        "Architecture",
+                        "Input Channels",
+                        "Output Classes",
+                        "Spatial Dimensions",
+                        "Federated Algorithm",
+                        "Privacy Mechanism",
+                        "Noise Multiplier",
+                        "Clipping Norm",
+                        "Model Status",
+                    ],
+                    "Value": [
+                        "Global 3D U-Net",
+                        "PyTorch + MONAI",
+                        "U-Net",
+                        "1",
+                        "2",
+                        "3D",
+                        "DP-FedAvg",
+                        "Client-side fixed clipping + central Gaussian noise",
+                        "0.5",
+                        "2.5",
+                        "Available",
+                    ],
+                }
+            )
 
         st.dataframe(
             details,
@@ -992,8 +1182,9 @@ elif page == "Global Model":
         )
 
         st.caption(
-            "The global model contains the aggregated "
-            "parameters produced through federated learning."
+            "The global model contains the aggregated parameters "
+            "produced through DP-FedAvg with client-side fixed clipping "
+            "and central Gaussian noise."
         )
 
     else:
