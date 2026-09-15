@@ -406,7 +406,7 @@ The reported privacy accounting should therefore be interpreted specifically in 
 
 # 🧪 Federated Learning Baseline
 
-A non-DP federated baseline was successfully executed with:
+A non-DP federated baseline was successfully executed using the current Python 3.12 environment with:
 
     Clients:          3
     Rounds:           5
@@ -419,20 +419,20 @@ A non-DP federated baseline was successfully executed with:
 
 | Round | Loss |
 |---:|---:|
-| 1 | 0.0424 |
-| 2 | 0.0651 |
-| 3 | 0.0912 |
-| 4 | 0.1500 |
-| 5 | 0.2086 |
+| 1 | 0.7553 |
+| 2 | 0.6479 |
+| 3 | 0.5751 |
+| 4 | 0.5184 |
+| 5 | 0.4676 |
 
 ### Global Evaluation
 
 | Hospital | Dice | IoU | Precision | Recall |
 |---|---:|---:|---:|---:|
-| Hospital-1 | 0.2091 | 0.1167 | 0.1237 | 0.6746 |
-| Hospital-2 | 0.2087 | 0.1165 | 0.1234 | 0.6764 |
-| Hospital-3 | 0.2080 | 0.1161 | 0.1230 | 0.6749 |
-| **Average** | **0.2086** | **0.1164** | **0.1234** | **0.6753** |
+| Hospital-1 | 0.0480 | 0.0246 | 0.0484 | 0.0477 |
+| Hospital-2 | 0.0334 | 0.0170 | 0.0337 | 0.0331 |
+| Hospital-3 | 0.0350 | 0.0178 | 0.0354 | 0.0346 |
+| **Average** | **0.0388** | **0.0198** | **0.0392** | **0.0385** |
 
 The baseline confirms that the complete federated training pipeline can execute successfully across all three simulated clients.
 
@@ -481,42 +481,45 @@ This experiment demonstrates a substantial utility impact under the tested DP co
 
 # 🔒 Differential Privacy Experiment — Noise 0.5
 
-A second native Flower DP experiment was executed with:
+The latest official native Flower DP experiment was executed with:
 
     Clients:          3
     Rounds:           5
     Clipping Norm:    2.5
     Noise Multiplier: 0.5
+    Local Epochs:     1
+    Learning Rate:    0.001
     Failures:         0
 
-The aggregation process reported central DP noise with an approximately:
+This run successfully generated the current `models/global_model.pth` artifact.
 
-    0.4167
+### Round Results
 
-standard deviation contribution.
-
-### Round Loss
-
-| Round | Loss |
-|---:|---:|
-| 1 | 0.7113 |
-| 2 | 1.7517 |
-| 3 | 2.2359 |
-| 4 | 2.5607 |
-| 5 | 2.3503 |
+| Round | Train Loss | Dice |
+|---:|---:|---:|
+| 1 | 0.8261 | 0.0305 |
+| 2 | 0.6389 | 0.0313 |
+| 3 | 2.7583 | 0.0305 |
+| 4 | 3.3267 | 0.0310 |
+| 5 | 4.4626 | 0.0312 |
 
 ### Final Evaluation
 
 | Hospital | Dice | IoU | Precision | Recall |
 |---|---:|---:|---:|---:|
-| Hospital-1 | 0.0297 | 0.0151 | 0.0154 | 0.4040 |
-| Hospital-2 | 0.0297 | 0.0151 | 0.0154 | 0.4048 |
-| Hospital-3 | 0.0297 | 0.0151 | 0.0154 | 0.4048 |
-| **Average** | **0.0297** | **0.0151** | **0.0154** | **0.4045** |
+| Hospital-1 | 0.0312 | 0.0158 | 0.0159 | 0.8841 |
+| Hospital-2 | 0.0311 | 0.0158 | 0.0158 | 0.8812 |
+| Hospital-3 | 0.0312 | 0.0158 | 0.0159 | 0.8830 |
+| **Average** | **0.0312** | **0.0158** | **0.0159** | **0.8828** |
 
-The results provide an initial experimental view of the privacy-utility trade-off in the current training environment.
+The experiment completed all five federated rounds with all three simulated hospitals participating and no training failures.
+
+The results demonstrate a functioning privacy-preserving federated training pipeline, while current segmentation quality remains limited. The very low precision combined with high recall indicates substantial false-positive predictions.
+
+The experiment should therefore be interpreted as engineering and research validation rather than clinical performance.
 
 ---
+
 
 # 📈 Privacy vs Utility
 
@@ -971,11 +974,11 @@ A virtual environment is strongly recommended.
 
     pip install -e .
 
-The project includes Flower 1.35.0 with Differential Privacy support.
+The project includes Flower 1.35.0 with Differential Privacy and simulation support.
 
 The dependency specification uses:
 
-    flwr[dp]==1.35.0
+    flwr[dp,simulation]==1.35.0
 
 ---
 
@@ -1104,34 +1107,67 @@ The primary experiment configuration is maintained through the project configura
 
 # 📊 Experiment Tracking
 
-Current experiments have demonstrated:
+The current verified experiments include a non-DP FedAvg baseline and a native Flower DP-FedAvg experiment.
 
-## Federated Baseline
+## Federated Baseline — FedAvg
 
-    3 Clients
-    5 Rounds
-    FedAvg
-    No Failures
-    Average Dice ≈ 0.2086
+    Clients:          3
+    Rounds:           5
+    Failures:         0
+    Local Epochs:     1
+    Learning Rate:    0.001
+    Aggregation:      FedAvg
 
-## DP Noise 0.5
+### Final Evaluation
 
-    3 Clients
-    5 Rounds
-    Clipping Norm = 2.5
-    Noise Multiplier = 0.5
-    Average Dice ≈ 0.0297
+| Metric | Average |
+|---|---:|
+| Dice | 0.0388 |
+| IoU | 0.0198 |
+| Precision | 0.0392 |
+| Recall | 0.0385 |
 
-## DP Noise 1.0
+## Official DP Experiment — DP-FedAvg
 
-    3 Clients
-    5 Rounds
-    Clipping Norm = 2.5
-    Noise Multiplier = 1.0
-    Average Dice ≈ 0.0302
+    Clients:          3
+    Rounds:           5
+    Clipping Norm:    2.5
+    Noise Multiplier: 0.5
+    Local Epochs:     1
+    Learning Rate:    0.001
+    Failures:         0
 
-These experiments are intended as engineering and research validation rather than clinical performance claims.
+### Final Evaluation
 
+| Metric | Average |
+|---|---:|
+| Dice | 0.0312 |
+| IoU | 0.0158 |
+| Precision | 0.0159 |
+| Recall | 0.8828 |
+
+The latest DP-FedAvg run generated the current `models/global_model.pth` artifact.
+
+## Additional DP Experiment — Noise Multiplier 1.0
+
+A separate native Flower DP experiment was also completed with:
+
+    Clients:          3
+    Rounds:           5
+    Clipping Norm:    2.5
+    Noise Multiplier: 1.0
+    Failures:         0
+
+### Final Evaluation
+
+| Metric | Average |
+|---|---:|
+| Dice | 0.0302 |
+| IoU | 0.0153 |
+| Precision | 0.0156 |
+| Recall | 0.4384 |
+
+These experiments are intended as engineering and research validation rather than clinical performance claims. The current segmentation results indicate substantial room for improvement in model quality and training configuration.
 ---
 
 # ⚠️ Current Limitations
