@@ -40,35 +40,49 @@ PREDICTION_DIR = os.path.join(
 
 
 # ============================================================
-# REAL PROJECT RESULTS
+# EXPERIMENT RESULT SOURCES
 # ============================================================
 
-RESULTS_PATH = os.path.join(
+HISTORICAL_RESULTS_PATH = os.path.join(
     BASE_DIR,
     "outputs",
     "experiment_results.csv",
 )
 
+CURRENT_EVALUATION_PATH = os.path.join(
+    BASE_DIR,
+    "outputs",
+    "evaluation_results.csv",
+)
 
-def load_experiment_results():
-    """Load verified experiment results from CSV."""
 
-    if not os.path.exists(RESULTS_PATH):
+def load_csv(path):
+    """Load a CSV file when available."""
+    if not os.path.exists(path):
         return pd.DataFrame()
 
-    return pd.read_csv(RESULTS_PATH)
+    return pd.read_csv(path)
 
 
-RESULTS_DF = load_experiment_results()
+# Historical verified experiments
+RESULTS_DF = load_csv(
+    HISTORICAL_RESULTS_PATH
+)
+
+# Current model evaluation generated directly from
+# evaluation/evaluate_global.py
+CURRENT_EVAL_DF = load_csv(
+    CURRENT_EVALUATION_PATH
+)
 
 
-# Use the latest verified DP-FedAvg experiment
+# Current DP-FedAvg evaluation
 if (
-    not RESULTS_DF.empty
-    and "experiment" in RESULTS_DF.columns
+    not CURRENT_EVAL_DF.empty
+    and "experiment" in CURRENT_EVAL_DF.columns
 ):
-    DP_RESULTS = RESULTS_DF[
-        RESULTS_DF["experiment"] == "DP-FedAvg"
+    DP_RESULTS = CURRENT_EVAL_DF[
+        CURRENT_EVAL_DF["experiment"] == "DP-FedAvg"
     ].copy()
 else:
     DP_RESULTS = pd.DataFrame()
@@ -929,106 +943,131 @@ elif page == "Federated Training":
     st.write("")
 
     # --------------------------------------------------------
-    # Verified round-by-round training results
+    # Current DP-FedAvg training history
     # --------------------------------------------------------
 
-    st.subheader("Round-by-Round Training Results")
+    st.subheader("Current DP-FedAvg Training Results")
 
-    training_history = pd.DataFrame(
-        {
-            "Round": [1, 2, 3, 4, 5],
+    TRAINING_HISTORY_PATH = os.path.join(
+        BASE_DIR,
+        "outputs",
+        "training_history.csv",
+    )
 
-            "FedAvg Loss": [
-                0.7552829252,
-                0.6478891638,
-                0.5751358867,
-                0.5184391075,
-                0.4676197006,
-            ],
+    if os.path.exists(TRAINING_HISTORY_PATH):
+        training_history_raw = pd.read_csv(
+            TRAINING_HISTORY_PATH
+        )
 
-            "FedAvg Dice": [
-                0.0316425730,
-                0.0295521288,
-                0.0283128191,
-                0.0356543437,
-                0.0480200425,
-            ],
-
-            "DP-FedAvg Loss": [
-                0.8260768851,
-                0.6389293538,
-                2.7583336035,
-                3.3267206351,
-                4.4625719918,
-            ],
-
-            "DP-FedAvg Dice": [
-                0.0305071597,
-                0.0313314293,
-                0.0305207844,
-                0.0310470524,
-                0.0312029148,
-            ],
+        required_columns = {
+            "round",
+            "experiment",
+            "train_loss",
+            "eval_dice",
         }
-    )
 
-    st.dataframe(
-        training_history,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "FedAvg Loss": st.column_config.NumberColumn(
-                "FedAvg Loss",
-                format="%.4f",
-            ),
-            "FedAvg Dice": st.column_config.NumberColumn(
-                "FedAvg Dice",
-                format="%.4f",
-            ),
-            "DP-FedAvg Loss": st.column_config.NumberColumn(
-                "DP-FedAvg Loss",
-                format="%.4f",
-            ),
-            "DP-FedAvg Dice": st.column_config.NumberColumn(
-                "DP-FedAvg Dice",
-                format="%.4f",
-            ),
-        },
-    )
+        if required_columns.issubset(
+            training_history_raw.columns
+        ):
+            training_history = training_history_raw[
+                training_history_raw["experiment"]
+                == "DP-FedAvg"
+            ].copy()
 
-    st.write("")
+            training_history["round"] = pd.to_numeric(
+                training_history["round"],
+                errors="coerce",
+            )
 
-    # --------------------------------------------------------
-    # Training loss comparison
-    # --------------------------------------------------------
+            training_history["train_loss"] = pd.to_numeric(
+                training_history["train_loss"],
+                errors="coerce",
+            )
 
-    st.subheader("Training Loss Comparison")
+            training_history["eval_dice"] = pd.to_numeric(
+                training_history["eval_dice"],
+                errors="coerce",
+            )
 
-    loss_chart = training_history.set_index("Round")[
-        [
-            "FedAvg Loss",
-            "DP-FedAvg Loss",
-        ]
-    ]
+            training_history = training_history.sort_values(
+                "round"
+            )
 
-    st.line_chart(loss_chart)
+            display_history = training_history[
+                [
+                    "round",
+                    "train_loss",
+                    "eval_dice",
+                ]
+            ].rename(
+                columns={
+                    "round": "Round",
+                    "train_loss": "DP-FedAvg Loss",
+                    "eval_dice": "DP-FedAvg Dice",
+                }
+            )
 
-    st.write("")
+            st.dataframe(
+                display_history,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "DP-FedAvg Loss":
+                        st.column_config.NumberColumn(
+                            "DP-FedAvg Loss",
+                            format="%.4f",
+                        ),
+                    "DP-FedAvg Dice":
+                        st.column_config.NumberColumn(
+                            "DP-FedAvg Dice",
+                            format="%.4f",
+                        ),
+                },
+            )
 
-    # --------------------------------------------------------
-    # Dice comparison
-    # --------------------------------------------------------
+            st.caption(
+                "Values are loaded directly from the latest "
+                "generated DP-FedAvg training artifact."
+            )
 
-    st.subheader("Dice Score Comparison")
+            st.write("")
 
-    dice_chart = training_history.set_index("Round")[
-        [
-            "FedAvg Dice",
-            "DP-FedAvg Dice",
-        ]
-    ]
+            # ------------------------------------------------
+            # Training loss
+            # ------------------------------------------------
 
-    st.line_chart(dice_chart)
+            st.subheader("DP-FedAvg Training Loss")
+
+            loss_chart = display_history.set_index(
+                "Round"
+            )[["DP-FedAvg Loss"]]
+
+            st.line_chart(loss_chart)
+
+            st.write("")
+
+            # ------------------------------------------------
+            # Dice score
+            # ------------------------------------------------
+
+            st.subheader("DP-FedAvg Dice Score")
+
+            dice_chart = display_history.set_index(
+                "Round"
+            )[["DP-FedAvg Dice"]]
+
+            st.line_chart(dice_chart)
+
+        else:
+            st.warning(
+                "training_history.csv exists, but its required "
+                "columns are missing."
+            )
+
+    else:
+        st.warning(
+            "Current training history is not available yet."
+        )
 
     st.write("")
 
@@ -1038,53 +1077,95 @@ elif page == "Federated Training":
 
     st.subheader("Experiment Summary")
 
-    summary_df = pd.DataFrame(
-        {
-            "Experiment": [
-                "FedAvg",
-                "DP-FedAvg",
-            ],
-            "Final Train Loss": [
-                0.4676197006,
-                4.4625719918,
-            ],
-            "Final Dice": [
-                0.0480200425,
-                0.0312029148,
-            ],
-            "Noise Multiplier": [
-                0.0,
-                0.5,
-            ],
-            "Clipping Norm": [
-                0.0,
-                2.5,
-            ],
-        }
-    )
+    summary_rows = []
+
+    # Historical FedAvg baseline
+    fedavg_results = RESULTS_DF[
+        RESULTS_DF["experiment"] == "FedAvg"
+    ].copy()
+
+    if not fedavg_results.empty:
+        summary_rows.append(
+            {
+                "Experiment": "FedAvg (historical baseline)",
+                "Final Train Loss": None,
+                "Final Dice": float(
+                    fedavg_results["dice"].mean()
+                ),
+                "Noise Multiplier": 0.0,
+                "Clipping Norm": 0.0,
+            }
+        )
+
+    # Current DP-FedAvg run
+    dp_summary_loss = None
+    dp_summary_dice = None
+
+    if (
+        os.path.exists(TRAINING_HISTORY_PATH)
+        and not training_history.empty
+    ):
+        dp_summary_loss = float(
+            training_history.iloc[-1]["train_loss"]
+        )
+
+    if not DP_RESULTS.empty:
+        dp_summary_dice = float(
+            DP_RESULTS["dice"].mean()
+        )
+
+    if (
+        dp_summary_loss is not None
+        or dp_summary_dice is not None
+    ):
+        summary_rows.append(
+            {
+                "Experiment": "DP-FedAvg (current run)",
+                "Final Train Loss": dp_summary_loss,
+                "Final Dice": dp_summary_dice,
+                "Noise Multiplier": float(
+                    DP_RESULTS["noise_multiplier"].iloc[0]
+                ),
+                "Clipping Norm": float(
+                    DP_RESULTS["clipping_norm"].iloc[0]
+                ),
+            }
+        )
+
+    summary_df = pd.DataFrame(summary_rows)
 
     st.dataframe(
         summary_df,
         use_container_width=True,
         hide_index=True,
         column_config={
-            "Final Train Loss": st.column_config.NumberColumn(
-                "Final Train Loss",
-                format="%.4f",
-            ),
-            "Final Dice": st.column_config.NumberColumn(
-                "Final Dice",
-                format="%.4f",
-            ),
-            "Noise Multiplier": st.column_config.NumberColumn(
-                "Noise Multiplier",
-                format="%.2f",
-            ),
-            "Clipping Norm": st.column_config.NumberColumn(
-                "Clipping Norm",
-                format="%.2f",
-            ),
+            "Final Train Loss":
+                st.column_config.NumberColumn(
+                    "Final Train Loss",
+                    format="%.4f",
+                ),
+            "Final Dice":
+                st.column_config.NumberColumn(
+                    "Final Dice",
+                    format="%.4f",
+                ),
+            "Noise Multiplier":
+                st.column_config.NumberColumn(
+                    "Noise Multiplier",
+                    format="%.2f",
+                ),
+            "Clipping Norm":
+                st.column_config.NumberColumn(
+                    "Clipping Norm",
+                    format="%.2f",
+                ),
         },
+    )
+
+    st.caption(
+        "The FedAvg baseline is shown as a historical verified "
+        "experiment. The current DP-FedAvg values are loaded "
+        "from generated experiment artifacts."
     )
 
 # ============================================================

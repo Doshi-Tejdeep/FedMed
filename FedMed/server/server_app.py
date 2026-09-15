@@ -1,12 +1,14 @@
+import csv
 import os
+from datetime import datetime, timezone
 
 import torch
 
 from flwr.app import ArrayRecord, ConfigRecord, Context
 from flwr.serverapp import ServerApp
 from flwr.serverapp.strategy import (
-    FedAvg,
     DifferentialPrivacyClientSideFixedClipping,
+    FedAvg,
 )
 
 from model.unet3d import create_model
@@ -16,6 +18,12 @@ MODEL_DIR = "models"
 MODEL_PATH = os.path.join(
     MODEL_DIR,
     "global_model.pth",
+)
+
+OUTPUT_DIR = "outputs"
+TRAINING_HISTORY_PATH = os.path.join(
+    OUTPUT_DIR,
+    "training_history.csv",
 )
 
 
@@ -29,7 +37,9 @@ def create_initial_arrays() -> ArrayRecord:
     )
 
 
-def save_global_model(array_record: ArrayRecord) -> None:
+def save_global_model(
+    array_record: ArrayRecord,
+) -> None:
     """Save the final global model as a PyTorch state dict."""
 
     os.makedirs(
@@ -55,6 +65,101 @@ def save_global_model(array_record: ArrayRecord) -> None:
     print("===== GLOBAL MODEL SAVED =====")
     print(f"Path: {MODEL_PATH}")
     print("==============================")
+    print()
+
+
+def save_training_history(
+    result,
+    experiment_name: str,
+    output_path: str,
+) -> None:
+    """Save aggregated per-round training/evaluation metrics."""
+
+    os.makedirs(
+        os.path.dirname(output_path) or ".",
+        exist_ok=True,
+    )
+
+    rows = []
+
+    train_history = result.train_metrics_clientapp
+    evaluate_history = result.evaluate_metrics_clientapp
+
+    all_rounds = sorted(
+        set(train_history.keys())
+        | set(evaluate_history.keys())
+    )
+
+    evaluated_at_utc = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    for round_number in all_rounds:
+        train_metrics = train_history.get(
+            round_number,
+            {},
+        )
+
+        evaluate_metrics = evaluate_history.get(
+            round_number,
+            {},
+        )
+
+        train_loss = train_metrics.get(
+            "loss",
+            "",
+        )
+
+        eval_dice = evaluate_metrics.get(
+            "dice",
+            "",
+        )
+
+        rows.append(
+            {
+                "round": round_number,
+                "experiment": experiment_name,
+                "train_loss": (
+                    float(train_loss)
+                    if train_loss != ""
+                    else ""
+                ),
+                "eval_dice": (
+                    float(eval_dice)
+                    if eval_dice != ""
+                    else ""
+                ),
+                "evaluated_at_utc": evaluated_at_utc,
+            }
+        )
+
+    fieldnames = [
+        "round",
+        "experiment",
+        "train_loss",
+        "eval_dice",
+        "evaluated_at_utc",
+    ]
+
+    with open(
+        output_path,
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as csv_file:
+        writer = csv.DictWriter(
+            csv_file,
+            fieldnames=fieldnames,
+        )
+
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print()
+    print("===== TRAINING HISTORY SAVED =====")
+    print(f"Path: {output_path}")
+    print(f"Rounds saved: {len(rows)}")
+    print("==================================")
     print()
 
 
@@ -110,6 +215,19 @@ def main(grid, context: Context):
     print("====================================")
 
     # ---------------------------------------------------------
+    # Experiment name
+    # ---------------------------------------------------------
+    if noise_multiplier > 0:
+        experiment_name = "DP-FedAvg"
+    else:
+        experiment_name = "FedAvg"
+
+    print(
+        f"Experiment           : "
+        f"{experiment_name}"
+    )
+
+    # ---------------------------------------------------------
     # Base FedAvg strategy
     # ---------------------------------------------------------
     base_strategy = FedAvg(
@@ -123,12 +241,15 @@ def main(grid, context: Context):
     # ---------------------------------------------------------
     # Native Flower client-side clipping + central DP noise
     # ---------------------------------------------------------
-    strategy = DifferentialPrivacyClientSideFixedClipping(
-        strategy=base_strategy,
-        noise_multiplier=noise_multiplier,
-        clipping_norm=clipping_norm,
-        num_sampled_clients=num_sampled_clients,
-    )
+    if noise_multiplier > 0:
+        strategy = DifferentialPrivacyClientSideFixedClipping(
+            strategy=base_strategy,
+            noise_multiplier=noise_multiplier,
+            clipping_norm=clipping_norm,
+            num_sampled_clients=num_sampled_clients,
+        )
+    else:
+        strategy = base_strategy
 
     # ---------------------------------------------------------
     # Initial global model
@@ -167,7 +288,20 @@ def main(grid, context: Context):
             result.arrays
         )
 
+    # ---------------------------------------------------------
+    # Save per-round training history
+    # ---------------------------------------------------------
+    save_training_history(
+        result=result,
+        experiment_name=experiment_name,
+        output_path=TRAINING_HISTORY_PATH,
+    )
+
     print()
     print("====================================")
     print("FedMed federated training complete")
     print("====================================")
+
+
+if __name__ == "__main__":
+    main()

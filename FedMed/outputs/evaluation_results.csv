@@ -1,0 +1,4 @@
+experiment,noise_multiplier,clipping_norm,hospital,dice,iou,precision,recall,model_path,evaluated_at_utc
+DP-FedAvg,0.5,2.5,Hospital-1,0.0320,0.0163,0.0165,0.5140,models/global_model.pth,2026-09-15T12:39:21.202042+00:00
+DP-FedAvg,0.5,2.5,Hospital-2,0.0320,0.0163,0.0165,0.5128,models/global_model.pth,2026-09-15T12:39:21.202042+00:00
+DP-FedAvg,0.5,2.5,Hospital-3,0.0319,0.0162,0.0165,0.5121,models/global_model.pth,2026-09-15T12:39:21.202042+00:00

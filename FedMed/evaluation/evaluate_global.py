@@ -1,10 +1,10 @@
+import argparse
+import csv
 import os
+from datetime import datetime, timezone
 
 import torch
 from torch.utils.data import DataLoader
-
-from model.unet3d import create_model
-from training.local_train import get_dataset
 
 from evaluation.metrics import (
     dice_score,
@@ -12,9 +12,12 @@ from evaluation.metrics import (
     precision_score,
     recall_score,
 )
+from model.unet3d import create_model
+from training.local_train import get_dataset
 
 
 MODEL_PATH = "models/global_model.pth"
+DEFAULT_OUTPUT_PATH = "outputs/evaluation_results.csv"
 
 
 def evaluate_hospital(model, hospital_id, device):
@@ -38,9 +41,7 @@ def evaluate_hospital(model, hospital_id, device):
     count = 0
 
     with torch.no_grad():
-
         for batch in loader:
-
             images = batch["image"].to(device)
             labels = batch["label"].to(device)
 
@@ -73,12 +74,17 @@ def evaluate_hospital(model, hospital_id, device):
                 labels,
             )
 
-            total_dice += dice
-            total_iou += iou
-            total_precision += precision
-            total_recall += recall
+            total_dice += float(dice)
+            total_iou += float(iou)
+            total_precision += float(precision)
+            total_recall += float(recall)
 
             count += 1
+
+    if count == 0:
+        raise RuntimeError(
+            f"No evaluation samples found for {hospital_id}."
+        )
 
     results = {
         "dice": total_dice / count,
@@ -98,18 +104,127 @@ def evaluate_hospital(model, hospital_id, device):
     return results
 
 
+def save_results(
+    hospital_results,
+    experiment_name,
+    noise_multiplier,
+    clipping_norm,
+    output_path,
+):
+    os.makedirs(
+        os.path.dirname(output_path) or ".",
+        exist_ok=True,
+    )
+
+    rows = []
+
+    hospitals = [
+        "Hospital-1",
+        "Hospital-2",
+        "Hospital-3",
+    ]
+
+    for hospital_name, result in zip(
+        hospitals,
+        hospital_results,
+    ):
+        rows.append(
+            {
+                "experiment": experiment_name,
+                "noise_multiplier": noise_multiplier,
+                "clipping_norm": clipping_norm,
+                "hospital": hospital_name,
+                "dice": f"{result['dice']:.4f}",
+                "iou": f"{result['iou']:.4f}",
+                "precision": f"{result['precision']:.4f}",
+                "recall": f"{result['recall']:.4f}",
+                "model_path": MODEL_PATH,
+                "evaluated_at_utc": datetime.now(
+                    timezone.utc
+                ).isoformat(),
+            }
+        )
+
+    fieldnames = [
+        "experiment",
+        "noise_multiplier",
+        "clipping_norm",
+        "hospital",
+        "dice",
+        "iou",
+        "precision",
+        "recall",
+        "model_path",
+        "evaluated_at_utc",
+    ]
+
+    with open(
+        output_path,
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as csv_file:
+        writer = csv.DictWriter(
+            csv_file,
+            fieldnames=fieldnames,
+        )
+
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(
+        f"\nEvaluation results saved to: {output_path}"
+    )
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description=(
+            "Evaluate the FedMed global model "
+            "and save machine-readable results."
+        )
+    )
+
+    parser.add_argument(
+        "--experiment",
+        default="DP-FedAvg",
+        help="Experiment name.",
+    )
+
+    parser.add_argument(
+        "--noise-multiplier",
+        type=float,
+        default=0.5,
+        help="DP noise multiplier.",
+    )
+
+    parser.add_argument(
+        "--clipping-norm",
+        type=float,
+        default=2.5,
+        help="DP clipping norm.",
+    )
+
+    parser.add_argument(
+        "--output",
+        default=DEFAULT_OUTPUT_PATH,
+        help="Path to the generated CSV file.",
+    )
+
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
 
     print("====================================")
     print("FedMed Global Model Evaluation")
     print("====================================")
 
     if not os.path.exists(MODEL_PATH):
-
         print("ERROR: Global model not found!")
         print(f"Expected path: {MODEL_PATH}")
-
-        return
+        return 1
 
     device = torch.device(
         "cuda"
@@ -144,7 +259,6 @@ def main():
     hospital_results = []
 
     for hospital in hospitals:
-
         result = evaluate_hospital(
             model,
             hospital,
@@ -181,7 +295,6 @@ def main():
         hospital_results,
         start=1,
     ):
-
         print(
             f"Hospital-{index}: "
             f"Dice={result['dice']:.4f}, "
@@ -210,6 +323,16 @@ def main():
 
     print("====================================")
 
+    save_results(
+        hospital_results=hospital_results,
+        experiment_name=args.experiment,
+        noise_multiplier=args.noise_multiplier,
+        clipping_norm=args.clipping_norm,
+        output_path=args.output,
+    )
+
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
