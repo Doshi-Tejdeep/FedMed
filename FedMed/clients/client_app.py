@@ -55,10 +55,7 @@ def train(msg: Message, context: Context) -> Message:
     )
 
     learning_rate = float(
-        msg.content["config"].get(
-            "learning-rate",
-            0.001,
-        )
+        msg.content["config"]["learning-rate"]
     )
 
     optimizer = torch.optim.Adam(

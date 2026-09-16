@@ -1,4 +1,4 @@
-import flwr as fl
+
 import torch
 
 from model.unet3d import create_model
@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from evaluation.dice import dice_score
 
 
-class FedMedClient(fl.client.NumPyClient):
+class FedMedClient:
 
     def __init__(self, hospital_id):
         self.hospital_id = hospital_id
