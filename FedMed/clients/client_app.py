@@ -20,6 +20,16 @@ def train_only_fixedclipping_mod(msg, ctxt, call_next):
     if msg.metadata.message_type != MessageType.TRAIN:
         return call_next(msg, ctxt)
 
+    noise_multiplier = float(
+        msg.content["config"].get(
+            "dp-noise-multiplier",
+            0.0,
+        )
+    )
+
+    if noise_multiplier <= 0:
+        return call_next(msg, ctxt)
+
     return fixedclipping_mod(msg, ctxt, call_next)
 
 app = ClientApp(

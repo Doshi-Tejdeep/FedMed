@@ -263,6 +263,7 @@ def main(grid, context: Context):
         {
             "local-epochs": local_epochs,
             "learning-rate": learning_rate,
+            "dp-noise-multiplier": noise_multiplier,
         }
     )
 
