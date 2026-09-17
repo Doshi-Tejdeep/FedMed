@@ -1,0 +1,21 @@
+Experiment: FedAvg synthetic-data 1-local-epoch baseline
+Flower: 1.35.0
+Rounds: 5
+Local epochs: 1
+Learning rate: 0.001
+DP noise multiplier: 0.0
+DP clipping norm: 2.5
+Sampled clients: 3
+Federation size: 3 simulated SuperNodes
+
+Round 1: loss=0.6493065556, dice=0.0547765717
+Round 2: loss=0.5479246775, dice=0.1054787636
+Round 3: loss=0.4785685307, dice=0.2591154774
+Round 4: loss=0.4213669135, dice=0.5366457303
+Round 5: loss=0.3738029467, dice=0.7757064104
+
+Global model:
+models/fedavg_synthetic_1epoch_5rounds_global_model.pth
+
+Training history:
+outputs/fedavg_synthetic_1epoch_5rounds_training_history.csv
