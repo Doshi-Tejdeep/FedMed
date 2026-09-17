@@ -1,0 +1,23 @@
+Experiment: DP-FedAvg synthetic-data baseline
+Flower: 1.35.0
+Rounds: 5
+Local epochs: 1
+Learning rate: 0.001
+DP noise multiplier: 0.5
+DP clipping norm: 2.5
+Sampled clients: 3
+Federation size: 3 simulated SuperNodes
+
+Run ID: 7415678446546849793
+
+Round 1: loss=0.7315032350, dice=0.0284684294
+Round 2: loss=1.8360493051, dice=0.0312495331
+Round 3: loss=2.4661891196, dice=0.0304671948
+Round 4: loss=2.3427294360, dice=0.0312597224
+Round 5: loss=4.9129858017, dice=0.0310975307
+
+Global model:
+models/dpfedavg_synthetic_1epoch_5rounds_global_model.pth
+
+Training history:
+outputs/dpfedavg_synthetic_1epoch_5rounds_training_history.csv
