@@ -1,0 +1,24 @@
+Experiment: Half-width U-Net FedAvg comparison
+Flower: 1.35.0
+Rounds: 5
+Local epochs: 1
+Learning rate: 0.001
+DP noise multiplier: 0.0
+Clipping norm: 2.5
+Sampled clients: 3
+Federation size: 3 simulated SuperNodes
+
+Model channels: (8, 16, 32, 64)
+Trainable parameters: 297637
+
+Round 1: loss=0.7339250975, dice=0.0641065141
+Round 2: loss=0.6266830696, dice=0.1132142097
+Round 3: loss=0.5569160713, dice=0.1809689353
+Round 4: loss=0.5035671029, dice=0.2581070662
+Round 5: loss=0.4572039015, dice=0.3701827625
+
+Global model:
+models/fedavg_halfwidth_1epoch_5rounds_global_model.pth
+
+Training history:
+outputs/fedavg_halfwidth_1epoch_5rounds_training_history.csv
