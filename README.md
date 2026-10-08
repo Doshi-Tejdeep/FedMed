@@ -510,7 +510,7 @@ This run successfully generated the current `models/global_model.pth` artifact.
 | Hospital-1 | 0.0312 | 0.0158 | 0.0159 | 0.8841 |
 | Hospital-2 | 0.0311 | 0.0158 | 0.0158 | 0.8812 |
 | Hospital-3 | 0.0312 | 0.0158 | 0.0159 | 0.8830 |
-| **Average** | **0.0312** | **0.0158** | **0.0159** | **0.8828** |
+| **Average** | **0.0320** | **0.0163** | **0.0165** | **0.5130** |
 
 The experiment completed all five federated rounds with all three simulated hospitals participating and no training failures.
 
@@ -933,7 +933,7 @@ The project is configured for modern Python environments.
 
 The current project metadata specifies:
 
-    requires-python = ">=3.11,<4.0"
+    requires-python = ">=3.12,<4.0"
 
 A virtual environment is strongly recommended.
 
@@ -943,7 +943,7 @@ A virtual environment is strongly recommended.
 
 ## 1. Clone the Repository
 
-    git clone <YOUR_GITHUB_REPOSITORY_URL>
+    git clone <https://github.com/Doshi-Tejdeep/FedMed.git>
     cd FedMed
 
 ## 2. Create Virtual Environment
@@ -973,6 +973,9 @@ A virtual environment is strongly recommended.
 ## 4. Install the Project
 
     pip install -e .
+
+
+    python data\generate_data.py
 
 The project includes Flower 1.35.0 with Differential Privacy and simulation support.
 
@@ -1036,7 +1039,7 @@ Start the dashboard using the Streamlit application entry point present in the r
 
 For example:
 
-    streamlit run dashboard/app.py
+    python -m streamlit run dashboard\app.py
 
 The exact entry point should match the dashboard file currently present in the repository.
 
@@ -1141,10 +1144,10 @@ The current verified experiments include a non-DP FedAvg baseline and a native F
 
 | Metric | Average |
 |---|---:|
-| Dice | 0.0312 |
-| IoU | 0.0158 |
-| Precision | 0.0159 |
-| Recall | 0.8828 |
+| Dice | 0.0320 |
+| IoU | 0.0163 |
+| Precision | 0.0165 |
+| Recall | 0.5130 |
 
 The latest DP-FedAvg run generated the current `models/global_model.pth` artifact.
 
